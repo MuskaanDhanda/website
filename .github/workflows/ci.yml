@@ -1,0 +1,37 @@
+name: CI
+
+on:
+  push:
+    branches: [master, develop]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  docker:
+    name: Lint, build and test the Docker image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Lint Dockerfile
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: Dockerfile
+          failure-threshold: error
+
+      - name: Build image
+        run: docker build . -t website:ci
+
+      - name: Run container and check the page
+        run: |
+          docker run -d -p 8080:80 --name web website:ci
+          for i in $(seq 1 15); do
+            curl -fs http://localhost:8080/ > page.html && break
+            sleep 2
+          done
+          grep -q "Hello world" page.html
+          echo "Website is up inside the container"
+
+      - name: Clean up
+        if: always()
+        run: docker rm -f web || true
